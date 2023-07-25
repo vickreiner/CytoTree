@@ -43,10 +43,24 @@
 buildTree <- function(object, method = "euclidean",
                       dim.type = c("raw", "pca", "tsne", "dc", "umap"), 
                       dim.use = seq_len(2),
-                      verbose = FALSE) {
+                      verbose = FALSE, markers.to.use = "lineage") {
 
   if (verbose) message(Sys.time(), " Calculating buildTree.")
   if (missing(object)) stop(Sys.time(), " CYT object is missing.")
+  
+  switch(markers.to.use,
+         lineage = {
+           markers.for.calculation <- which(object@markers %in% object@lineage.markers)
+           if(verbose) message(Sys.time()," Using only lineage markers for tree: ", paste0(object@markers[markers.for.calculation], collapse = ", "))
+         },
+         state = {
+           markers.for.calculation <- which(object@markers %in% object@state.markers)
+           if(verbose) message(Sys.time()," Using only state markers for tree: ", paste0(object@markers[markers.for.calculation], collapse = ", "))
+         },
+         all = {
+           markers.for.calculation <- object@markers.idx
+           if(verbose) message(Sys.time()," Using all markers for tree")
+         })
 
   dim.type <- match.arg(dim.type)
   if (dim.type %in% c("tsne", "tSNE", "TSNE", "t-SNE","t_SNE", "t") ) {
@@ -63,7 +77,7 @@ buildTree <- function(object, method = "euclidean",
     tree.mat <- object@umap.value[, dim.name]
   } else {
     if (verbose) message(Sys.time(), " The log data will be used to calculate trajectory")
-    tree.mat <- object@log.data[which(object@meta.data$dowsample == 1), object@markers.idx]
+    tree.mat <- object@log.data[which(object@meta.data$dowsample == 1), markers.for.calculation]
   }
 
   if (! "cluster.id" %in% colnames(object@meta.data)) {

@@ -53,11 +53,33 @@
 #' 
 #'
 runCluster <- function(object, cluster.method = c("som", "kmeans", "clara", "phenograph", "hclust", "mclust"),
-                       verbose = FALSE, ...) {
+                       verbose = FALSE, markers.to.use = "lineage",  ...) {
 
   if (missing(object)) {
     stop(Sys.time(), " CYT object is missing ")
   }
+  
+  #allow to cluster only based on certain markers
+  #This is done by modifiying the markers and markers.idx slots in the object. That modification will be reversed back before returing the object
+  ## exprs transformation
+  obj.markers.bk <- object@markers
+  obj.markers.idx.bk <- object@markers.idx
+  switch(markers.to.use,
+         lineage = {
+           object@markers <- object@markers[which(obj.markers.bk %in% object@lineage.markers)]
+           object@markers.idx <- which(obj.markers.bk %in% object@lineage.markers)
+           if(verbose) message(Sys.time()," Using only lineage markers for clustering: ", paste0(obj.markers.bk[object@markers.idx], collapse = ", "))
+         },
+         state = {
+           object@markers <- object@markers[which(obj.markers.bk %in% object@state.markers)]
+           object@markers.idx <- which(obj.markers.bk %in% object@state.markers)
+           if(verbose) message(Sys.time()," Using only state markers for clustering: ", paste0(obj.markers.bk[object@markers.idx], collapse = ", "))
+         },
+         all = {
+           if(verbose) message(Sys.time()," Using all markers for clustering ")
+         })
+  
+  
   cluster.method <- match.arg(cluster.method)
   if (cluster.method == "som") {
     object <- runSOM(object, verbose = verbose, ...)
@@ -86,6 +108,18 @@ runCluster <- function(object, cluster.method = c("som", "kmeans", "clara", "phe
   object@meta.data$is.root.cells <- 0
   object@meta.data$is.leaf.cells <- 0
 
+  #reset markers
+  switch(markers.to.use,
+         lineage = {
+           object@markers <- obj.markers.bk
+           object@markers.idx <- obj.markers.idx.bk
+         },
+         state = {
+           object@markers <- obj.markers.bk
+           object@markers.idx <- obj.markers.idx.bk
+         },
+         all = {})
+  
   return(object)
 
 }
@@ -160,7 +194,7 @@ processingCluster <- function(object, perplexity = 5, k = 5,
   # checking index of markers in cluster
   cluster.meta <- fetchClustMeta(object, verbose = FALSE)
   cluster.mat <- cluster.meta[, match(object@markers, colnames(cluster.meta))]
-
+  
   # run PCA
   if (verbose) message(Sys.time(), " Calculating PCA")
   pca.info <- fast.prcomp( t(cluster.mat), ...)

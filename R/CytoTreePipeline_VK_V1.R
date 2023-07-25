@@ -73,8 +73,6 @@ SubsampleFCSmatrix <- function(fcs.data = fcs.data,
   return(fcs.data)
 }
 
-
-
 #### Apply transformation ####
 
 ApplyTransformation <- function(fcs.data = fcs.data,
@@ -107,6 +105,8 @@ ApplyTransformation <- function(fcs.data = fcs.data,
   return(fcs.data)
 }
 
+#### Expand metadata for match with fcs.data ####
+
 ExpandMetadata <- function(md = md,
                            fcs.data = fcs.data){
   ns <- gsub("_\\d+$", "", rownames(fcs.data)) #get rownmames without cell id
@@ -117,17 +117,61 @@ ExpandMetadata <- function(md = md,
   return(mdl)
 }
 
+#### Proportions barplot function from Platypus ####
+#slightly simplified here
 
-#### Add lineage markers ####
-
-defineLineageMarkers <- function(FCSlist, lineage.markers){
-  
-  FCSlist[["panel"]]$lineage <- FCSlist[["panel"]]$antigen %in% lineage.markers
-  FCSlist[["panel"]]$functional <- !FCSlist[["panel"]]$antigen %in% lineage.markers
-  
-  print(paste0("Lineage markers: ", paste0(FCSlist[["panel"]]$antigen[FCSlist[["panel"]]$lineage], collapse = ", ")))
-  print(paste0("Functional markers: ", paste0(FCSlist[["panel"]]$antigen[FCSlist[["panel"]]$functional], collapse = ", ")))
-  return(FCSlist) 
+CytoProportionsBarplot <- function(cyt = cyt, 
+                                   source.group = "cluster.id",
+                                   target.group = "group.id",
+                                   stacked.plot = TRUE,
+                                   verbose = FALSE){
+                                     
+unique_samples <- unique(cyt@meta.data[,source.group])
+unique_clusters <- unique(cyt@meta.data[,target.group])
+                                     
+cells_per_cluster_per_sample <- list()
+for(i in 1:length(unique_samples)){
+cells_per_cluster_per_sample[[i]] <- list()
+for(j in 1:length(unique_clusters)){
+                                         
+        if(stacked.plot == F){ #if normal barplot: get % of source group
+                    cells_per_cluster_per_sample[[i]][[j]] <- length(which(cyt@meta.data[,source.group]==unique_samples[i] & cyt@meta.data[,target.group]==unique_clusters[j]))/length(which(cyt@meta.data[,source.group]==unique_samples[i])) * 100
+        } else { #if stacked barplot: get % of target group
+                    cells_per_cluster_per_sample[[i]][[j]] <- length(which(cyt@meta.data[,source.group]==unique_samples[i] & cyt@meta.data[,target.group]==unique_clusters[j]))/length(which(cyt@meta.data[,target.group]==unique_clusters[j])) * 100
+              }
+           }
+      }
+ melting <- as.data.frame(reshape2::melt(cells_per_cluster_per_sample))
+                                     
+  melting$source.group <- "Unkown"
+  melting$target.group <- "Unkown"
+                                     
+   melting$source.group <- as.character(unique_samples[melting$L1])
+   melting$target.group <- as.character(unique_clusters[melting$L2])
+   colnames(melting) <- c("value", "L2", "Sample", "source", "target")
+                                     
+   if("factor" %in% class(cyt@meta.data[,source.group])){
+    if(verbose) message("Ordering based on existing source group factor levels")
+        melting$source <- ordered(as.factor(melting$source), levels = levels(cyt@meta.data[,source.group]))
+        print(unique(melting$source))} else {
+                                         
+   if(verbose) message("Reordering source group, as original column did not contain factor levels")
+     melting$source <- ordered(as.factor(melting$source), levels = unique(cyt@meta.data[,source.group]))
+          }
+    if("factor" %in% class(cyt@meta.data[,target.group])){
+     if(verbose) message("Ordering based on existing target group factor levels")
+       melting$target <- ordered(as.factor(melting$target), levels = levels(cyt@meta.data[,target.group]))} else {
+     if(verbose) message("Reordering target group, as original column did not contain factor levels")
+         melting$target <- ordered(as.factor(melting$target), levels = unique(cyt@meta.data[,target.group]))}
+                                     
+      if(stacked.plot == F){
+      if(verbose) message("Returning standard barplot with y axis = % of cells of source group")
+      output.plot <- ggplot2::ggplot(melting, ggplot2::aes(fill = source, y=value, x=target)) + ggplot2::geom_bar(stat="identity", width=0.6, color="black",position = "dodge") + ggplot2::theme_bw() + ggplot2::theme_classic() + ggplot2::theme(plot.margin = ggplot2::margin(5, 0, 0, 0, "mm")) + ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5)) + ggplot2::scale_y_continuous(expand = c(0,0)) + ggplot2::ylab(paste0("% of cells of ", source.group)) + ggplot2::xlab(paste0(target.group))
+      }else{
+      if(verbose) message("Returning stacked barplot with y axis = % of cells of target group")
+      output.plot <- ggplot2::ggplot(melting, ggplot2::aes(fill = source, y=value, x=target)) + ggplot2::geom_bar(stat="identity", width=0.6, color="black", position = "stack") + ggplot2::theme_bw() + ggplot2::theme_classic() + ggplot2::theme(plot.margin = ggplot2::margin(5, 0, 0, 0, "mm")) + ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5)) + ggplot2::scale_y_continuous(expand = c(0,0)) + ggplot2::ylab(paste0("% of cells of ", source.group)) + ggplot2::xlab(paste0(target.group))
+   }
+return(output.plot)
 }
 
 

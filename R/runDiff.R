@@ -33,14 +33,13 @@
 #'
 #'
 #'
-runDiff <- function(object, branch.id = NULL, branch.id.2 = NULL, verbose = FALSE) {
+runDiff <- function(object, branch.id = NULL, branch.id.2 = NULL, verbose = FALSE,...) {
 
   if (verbose) message(Sys.time(), " Calculating differentially expressed markers.")
   if (missing(object)) stop(Sys.time(), " CYT object is missing.")
   if (!"branch.id" %in% colnames(object@meta.data)) stop(Sys.time(), " branch.id is missing, please run buildTree first.")
 
   all.branch.ids <- unique(object@meta.data$branch.id)
-
   total.deg.list <- NULL
   branch.contrast <- NULL
   ga <- go <- NULL

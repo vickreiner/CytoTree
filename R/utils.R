@@ -172,21 +172,22 @@ addMetaData <- function(object, meta.info,
 #' cyt <- updateClustMeta(cyt)
 #' 
 #'
-updateClustMeta <- function(object, verbose = FALSE) {
+updateClustMeta <- function(object, verbose = FALSE, group.by = "cluster.id") {
 
+  if(!group.by %in% names(object@meta.data)) stop("group.by not found in meta.data column name. Please check spelling")
   # Generating tree meta information
   plot.data <- fetchPlotMeta(object, verbose = FALSE)
   plot.data <- cbind(plot.data, object@log.data[which(object@meta.data$dowsample == 1), ])
 
   if (length(unique(plot.data$stage)) > 1) {
-    cell.count <- table(plot.data[, match(c("cluster.id", "stage"), colnames(plot.data)) ])
+    cell.count <- table(plot.data[, match(c(group.by, "stage"), colnames(plot.data)) ])
     cell.count<- t(sapply(seq_len(dim(cell.count)[1]), function(x) cell.count[x, ]))
     cell.total.number <- rowSums(cell.count)
     cell.total.number.percent <- cell.total.number/sum(cell.total.number)
     cell.percent<- t(sapply(seq_len(dim(cell.count)[1]), function(x) cell.count[x,]/sum(cell.count[x,]) ))
     colnames(cell.percent) <- paste0(colnames(cell.count), ".percent")
   } else {
-    cell.count <- table(plot.data[, match(c("cluster.id", "stage"), colnames(plot.data)) ])
+    cell.count <- table(plot.data[, match(c(group.by, "stage"), colnames(plot.data)) ])
     cell.count<- t(sapply(seq_len(dim(cell.count)[1]), function(x) cell.count[x, ]))
     cell.count <- as.data.frame(t(cell.count))
     cell.total.number <- rowSums(cell.count)
@@ -199,7 +200,7 @@ updateClustMeta <- function(object, verbose = FALSE) {
 
   idx.redim <- match(c(colnames(object@log.data), "pseudotime", "traj.value", "traj.value.log"), colnames(plot.data))
   idx.redim <- unique(idx.redim)
-  tree.meta <- stats::aggregate(plot.data[, idx.redim], list(cluster = plot.data[, "cluster.id"]), mean)
+  tree.meta <- stats::aggregate(plot.data[, idx.redim], list(cluster = plot.data[, group.by]), mean)
   tree.meta.1 <- data.frame(cell.count,
                            cell.number = cell.total.number,
                            cell.number.percent = cell.total.number.percent,
@@ -278,9 +279,9 @@ fetchPlotMeta <- function(object, markers = NULL, verbose = FALSE) {
 #' 
 #'
 #'
-fetchClustMeta <- function(object, verbose = FALSE) {
+fetchClustMeta <- function(object, verbose = FALSE, group.by = "cluster.id") {
 
-  object <- updateClustMeta(object, verbose = verbose)
+  object <- updateClustMeta(object, verbose = verbose, group.by = group.by)
 
   return(object@tree.meta)
 }
@@ -352,8 +353,6 @@ fetchCell <- function(object, logical.connect = "or", verbose = FALSE, ... ) {
 }
 
 
-
-
 #'
 #' constraintMatrix
 #'
@@ -402,9 +401,6 @@ constraintMatrix <- function(x, cutoff = 0.99, markers = NULL, method = "euclide
 
   return(filter.mat)
 }
-
-
-
 
 
 

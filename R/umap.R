@@ -31,10 +31,25 @@
 #'
 #'
 runUMAP <- function(object, umap.config = umap.defaults,
-                    n_neighbors = 30, dims = 2, verbose = FALSE, ...) {
+                    n_neighbors = 30, dims = 2, verbose = FALSE, markers.to.use = "lineage", ...) {
   if (verbose) message(Sys.time(), " Calculating Umap.")
   if (length(which(object@meta.data$dowsample == 1)) < 10) stop(Sys.time, " Not enough cells, please run processingCluster and choose correct downsampling.size paramter. ")
-  mat <- as.matrix(object@log.data[which(object@meta.data$dowsample == 1), object@markers.idx])
+  
+  switch(markers.to.use,
+         lineage = {
+           markers.for.calculation <- which(object@markers %in% object@lineage.markers)
+           if(verbose) message(Sys.time()," Using only lineage markers for UMAP: ", paste0(object@markers[markers.for.calculation], collapse = ", "))
+         },
+         state = {
+           markers.for.calculation <- which(object@markers %in% object@state.markers)
+           if(verbose) message(Sys.time()," Using only state markers for UMAP: ", paste0(object@markers[markers.for.calculation], collapse = ", "))
+         },
+         all = {
+           markers.for.calculation <- object@markers.idx
+           if(verbose) message(Sys.time()," Using all markers for UMAP")
+         })
+  
+  mat <- as.matrix(object@log.data[which(object@meta.data$dowsample == 1), markers.for.calculation])
 
   umap.config$n_neighbors <- n_neighbors
   umap.config$n_components <- dims

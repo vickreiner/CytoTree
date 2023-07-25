@@ -92,8 +92,10 @@ plot2D <- function(object,
                    show.cluser.id = FALSE,
                    show.cluser.id.size = 4,
                    main = "2D plot of CYT",
-                   plot.theme = theme_bw()) {
+                   plot.theme = NULL) {
 
+  if(is.null(plot.theme)) plot.theme <- cowplot::theme_cowplot()+ theme(panel.border = element_rect(color = "black",size = 1.1, fill=NA), axis.line = element_blank())
+  
   # update and fetch plot meta information
   plot.meta <- fetchPlotMeta(object, verbose = FALSE)
 
@@ -531,18 +533,33 @@ plotCluster <- function(object,
 #' 
 #'
 plotClusterHeatmap <- function(object,
-                               color = colorRampPalette(c("blue","white","red"))(100),
-                               scale = "row", ...) {
+                               group.by = "cluster.id",
+                               cell.size = 10,
+                               pdf.name = "none",
+                               wh = 10:5,
+                               color = viridis::mako(100, begin = 0, end = 1),
+                               scale = "row",markers.to.use = "lineage", ...) {
 
+  switch(markers.to.use,
+         lineage = {markers.for.calculation <- object@markers[which(object@markers %in% object@lineage.markers)]},
+         state = {markers.for.calculation <- object@markers[which(object@markers %in% object@state.markers)]},
+         all = {markers.for.calculation <- object@markers})
+  
   # update plot meta information
-  plot.meta.data <- fetchClustMeta(object, verbose = FALSE)
+  plot.meta.data <- fetchClustMeta(object, verbose = FALSE, group.by = group.by)
 
-  mat <- plot.meta.data[, object@markers]
+  mat <- plot.meta.data[, markers.for.calculation]
   rownames(mat) <- plot.meta.data$cluster
-  gg <- pheatmap(t(mat), color = color, scale = scale, border_color = NA, ...)
-
-  return(gg)
-
+  if(pdf.name != "none"){
+    if(!stringr::str_detect(pdf.name, ".pdf$")) pdf.name <- paste0(pdf.name, ".pdf")
+    pdf(pdf.name, width = wh[1], height = wh[length(wh)])
+    gg <- pheatmap(mat, color = color, scale = scale, border_color = NA, cellwidth = cell.size, cellheight = cell.size,...)
+    dev.off()
+    print(gg)
+  } else {
+    gg <- pheatmap(mat, color = color, scale = scale, border_color = NA, cellwidth = cell.size, cellheight = cell.size,...)
+    return(gg)
+  }
 }
 
 #'
@@ -577,18 +594,20 @@ plotClusterHeatmap <- function(object,
 #' 
 #'
 plotBranchHeatmap <- function(object,
-                              color = colorRampPalette(c("blue","white","red"))(100),
+                              cell.size = 10,
+                              group.by = "cluster.id",
+                              color = viridis::mako(100, begin = 0, end = 0.95),
                               scale = "row", ...) {
 
   if (missing(object)) stop(Sys.time(), " object is missing")
 
   # update plot meta information
-  plot.meta.data <- fetchClustMeta(object, verbose = FALSE)
+  plot.meta.data <- fetchClustMeta(object, verbose = FALSE, group.by = group.by)
   branch = NULL
   mat <- aggregate(plot.meta.data[, object@markers], list(branch = plot.meta.data[, "branch.id"]), mean)
   rownames(mat) <- mat$branch
   mat <- mat[, -1]
-  gg <- pheatmap(t(mat), color = color, scale = scale, border_color = NA, ...)
+  gg <- pheatmap(mat, color = color, scale = scale, border_color = NA, cellwidth = cell.size, cellheight = cell.size, ...)
 
   return(gg)
 

@@ -44,13 +44,27 @@
 runTSNE <- function(object, dims = 2, initial_dims = 50, perplexity = 30,
                     theta = 0.5, check_duplicates = TRUE, pca = TRUE, max_iter = 1000,
                     verbose = FALSE, is_distance = FALSE, Y_init = NULL,
-                    pca_center = TRUE, pca_scale = FALSE,
+                    pca_center = TRUE, pca_scale = FALSE, markers.to.use = "lineage",
                     ...) {
+  
+  switch(markers.to.use,
+         lineage = {
+           markers.for.calculation <- which(object@markers %in% object@lineage.markers)
+           if(verbose) message(Sys.time()," Using only lineage markers for TSNE: ", paste0(object@markers[markers.for.calculation], collapse = ", "))
+         },
+         state = {
+           markers.for.calculation <- which(object@markers %in% object@state.markers)
+           if(verbose) message(Sys.time()," Using only state markers for TSNE: ", paste0(object@markers[markers.for.calculation], collapse = ", "))
+         },
+         all = {
+           markers.for.calculation <- object@markers.idx
+           if(verbose) message(Sys.time()," Using all markers for TSNE")
+         })
 
   # tSNE calculation
   if (verbose) message(Sys.time(), " Calculating tSNE.")
   if (length(which(object@meta.data$dowsample == 1)) < 10) stop(Sys.time, " Not enough cells, please run processingCluster and choose correct downsampleing.size paramter. ")
-  mat <- object@log.data[which(object@meta.data$dowsample == 1), object@markers.idx]
+  mat <- object@log.data[which(object@meta.data$dowsample == 1), markers.for.calculation]
   tsne.obj <- Rtsne(as.matrix(mat),
                     dims = dims, initial_dims = initial_dims, perplexity = perplexity,
                     theta = theta, check_duplicates = check_duplicates, pca = pca, max_iter = max_iter,

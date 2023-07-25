@@ -35,11 +35,27 @@
 runDiffusionMap <- function(object, sigma.use = NULL,
                             distance = c("euclidean", "cosine", "rankcor"),
                             k = 30,
-                            density.norm = TRUE,  verbose = FALSE,
+                            density.norm = TRUE,  verbose = FALSE, markers.to.use = "lineage",
                             ...) {
 
   if (length(which(object@meta.data$dowsample == 1)) < 10) stop(Sys.time, " Not enough cells, please run processingCluster and choose correct downsampleing.size paramter. ")
-  dm.data <- as.matrix(object@log.data[which(object@meta.data$dowsample == 1), object@markers.idx])
+  
+  switch(markers.to.use,
+         lineage = {
+           markers.for.calculation <- which(object@markers %in% object@lineage.markers)
+           if(verbose) message(Sys.time()," Using only lineage markers for diffusion: ", paste0(object@markers[markers.for.calculation], collapse = ", "))
+         },
+         state = {
+           markers.for.calculation <- which(object@markers %in% object@state.markers)
+           if(verbose) message(Sys.time()," Using only state markers for diffusion: ", paste0(object@markers[markers.for.calculation], collapse = ", "))
+         },
+         all = {
+           markers.for.calculation <- object@markers.idx
+           if(verbose) message(Sys.time()," Using all markers for diffusion")
+         })
+  
+  
+  dm.data <- as.matrix(object@log.data[which(object@meta.data$dowsample == 1), markers.for.calculation])
 
   if (verbose) message(Sys.time(), " Calculating Diffusion Map.")
   # Figure out sigma
