@@ -32,10 +32,11 @@ SaveTemplateMetadataTable <- function(path.to.fcs = getwd(),
 FilterAdjustMarkerNames <- function(fcs.data, 
                                     keep.non.fluorescent.channels = FALSE){
   
-  if(keep.non.fluorescent.channels) fcs.data <- fcs.data[,!stringr::str_detect(colnames(fcs.data), "FSC|SSC")]
+  if(keep.non.fluorescent.channels == FALSE) fcs.data <- fcs.data[,!stringr::str_detect(colnames(fcs.data), "FSC|SSC")]
   ncolnames <- gsub("<|>", "", stringr::str_extract(colnames(fcs.data), "<.*?>"))
   for(i in 1:length(ncolnames)) if(ncolnames[i] == "NA") ncolnames[i] <- gsub("<NA>", "", colnames(fcs.data)[i])
   colnames(fcs.data) <- ncolnames
+  message(Sys.time(), paste0(" Updated fcs.data markers are: ", paste0(colnames(fcs.data), collapse = ", ")))
   return(fcs.data)
 }
 
@@ -74,103 +75,48 @@ SubsampleFCSmatrix <- function(fcs.data = fcs.data,
 
 
 
+#### Apply transformation ####
 
-#### ADD GROUPS ####
-FlowAppendMetadata <- function(flowtidy = flowtidy,
-                               metadata.table.path = "template.metadata.table.xlsx"){
+ApplyTransformation <- function(fcs.data = fcs.data,
+                                shiny.transformation_parameters = transformation_parameters){
   
-  factors.table <- openxlsx::read.xlsx(metadata.table.path)
-  
-  #check that all names from factors.table are equal to column names to match
-  if(all(factors.table$fcs_name %in% unique(paste0(flowtidy$input_file, " / ", flowtidy$sample))) & nrow(factors.table) == (length(unique(paste0(flowtidy$input_file, " / ", flowtidy$sample))))){
-    factors.table <- factors.table[match(paste0(flowtidy$input_file, " / ", flowtidy$sample),factors.table$fcs_name),]
+   if(class(shiny.transformation_parameters) != "data.frame") stop("please provide a dataframe for shiny.transformation_parameters")                               
+                                  
+  FCSlist[["trans_exprs_frame"]] <- FCSlist[["exprs_frame"]]
+
+    trans.param <- shiny.transformation_parameters
     
+    trans.param$m <- trans.param$markers
+    trans.param$manual_cf <- as.numeric(trans.param$cofactors)
+    trans.param$manual_lower_bound <- as.numeric(trans.param$lower_bounds)
+    trans.param$manual_upper_bound <- as.numeric(trans.param$upper_bounds)
+    trans.param$manual_thresh <- 0
     
-    for(i in 2:ncol(factors.table)){
-      flowtidy[,names(factors.table)[i]] <- unlist(factors.table[,i])
-    }
-    
-    return(flowtidy)
-    
-  } else {
-    stop("Please verify that fcs_name in factors.table match the fcs names of the flowdat frame")
+  gc()
+  #transform exprs matrix
+  for(i in 1:nrow(trans.param)){
+    message(paste0("Transforming ", trans.param$m[i], " with asinh and cofactor/base ", trans.param$manual_cf[i], " and lower and upper bounds of ", trans.param$manual_lower_bound[i], ", ", trans.param$manual_upper_bound[i]))
+    #finf quantiles
+    lq <- quantile(fcs.data[,trans.param$m[i]], trans.param$manual_lower_bound[i], names = FALSE, na.rm = TRUE)
+    uq <- quantile(fcs.data[,trans.param$m[i]], trans.param$manual_upper_bound[i], names = FALSE, na.rm = TRUE)
+    #apply to marker
+    fcs.data[,trans.param$m[i]] <- asinh(fcs.data[,trans.param$m[i]] / trans.param$manual_cf[i])
+    fcs.data[,trans.param$m[i]] <- (fcs.data[,trans.param$m[i]] - lq)/(uq - lq)
   }
-  
+  message("Done! Returning transformed fcs.data")
+  return(fcs.data)
 }
 
-
-
-#Import function
-importFCS <- function(fcs.directory,
-                      metadata.path,
-                      filter.markers = TRUE,
-                      subsample.factor = 1){
-  
-  #search for FCS
-  fcs.files <- list.files(path = fcs.directory, pattern = ".fcs",full.names = F,include.dirs = F)
-  if(length(fcs.files) == 0) stop("No .fcs files found in fcs.directory")
-  #load metadata
-  load_error <- tryCatch({
-    md <- as.data.frame(readxl::read_excel(metadata.path))}, error = function(e){
-      stop(paste0("Loading metadata file failed: ", e))})
-  if(!"file_name" %in% names(md)) stop("Metadata table is missing the column file_name corresponding to fcs file names to load")
-  
-  #add rownames for later
-  rownames(md) <- md$file_name
-  
-  #overlay available files with metdata
-  if(all(md$file_name %in% fcs.files)){
-    message("Found all .fcs files indicated in metadata. Loading...")
-    load_error <- tryCatch({
-      fcs_raw <- flowCore::read.flowSet(paste0(fcs.directory,"/",md$file_name), transformation = FALSE, truncate_max_range = FALSE)}, error = function(e){
-        stop(paste0("Loading fcs files failed: ", e))})
-    
-  } else {
-    stop(paste0("Could not find the following .fcs files in fcs.directory: ", paste0(md$file_name[!md$file_name %in% fcs.files], collapse = "; ")))
-  }
-  
-  #Add panel data from Flowfile
-  pd <- data.frame(pData(parameters(fcs_raw[[1]])))
-  pd$name <- as.character(unlist(pd$name))
-  pd$desc <- as.character(unlist(pd$desc))
-  pd$lineage <- TRUE
-  pd$functional <- FALSE
-  
-  if(filter.markers){ #remove FSC etc.
-    pd <- subset(pd, desc %in% markernames(fcs_raw))
-    #subset the flowset
-    fcs_raw <- fcs_raw[,colnames(fcs_raw) %in% pd$name]
-  } else {
-    pd$desc[is.na(pd$desc)] <- pd$name[is.na(pd$desc)]
-  }
-  colnames(fcs_raw) <- pd$desc
-  names(pd)[2] <- "antigen"
-  pd$antigen <- gsub("-", "_",pd$antigen)
-  
-  #subsample if neccessary
-  if(subsample.factor < 1){
-    set.seed(8897)
-    fcs_raw <- fsApply(fcs_raw, function(ff) {
-      idx <- sample.int(nrow(ff), nrow(ff)*subsample.factor)
-      ff[idx,]  # alt. ff[order(idx),]
-    })
-  }
-  
-  #Add this to output list and general-all-encompassing format (thats the plan....)
-  fcs.list <- list("flowSet" = fcs_raw, "metadata" = as.data.frame(md), "panel" = as.data.frame(pd))
-  
-  #export exprs data frame
-  fcs.list[["exprs_frame"]] <- as.data.frame(fsApply((fcs_raw[,]), exprs))
-  
-  #export exprs data frame metadata
-  md$n_cells_per_sample <- fsApply(fcs_raw, nrow)
-  fcs.list[["exprs_metadata"]] <- as.data.frame(lapply(md, rep, md$n_cells_per_sample))
-  
-  print(paste0("Markers: '", paste0(pd$antigen, collapse = "', '"), "'"))
-  
-  print("Done")
-  return(fcs.list) 
+ExpandMetadata <- function(md = md,
+                           fcs.data = fcs.data){
+  ns <- gsub("_\\d+$", "", rownames(fcs.data)) #get rownmames without cell id
+  if(!all(ns %in% md$raw_fcs) | !all(md$raw_fcs %in% ns)) stop("More than one raw_fcs file from metadata not found in fcs.data matrix or vice versa. Please check fcs.data via rownames(fcs.data)")
+  mdl <- md[match(ns, md$raw_fcs),]
+  mdl$cell <- rownames(fcs.data)
+  mdl$stage <- mdl$group_id
+  return(mdl)
 }
+
 
 #### Add lineage markers ####
 
@@ -184,187 +130,6 @@ defineLineageMarkers <- function(FCSlist, lineage.markers){
   return(FCSlist) 
 }
 
-
-#### Test Transformation ###
-
-FindTransformation <- function(FCSlist,
-                               transformation.methods.to.test = list("asinh" = seq(1, 10000, 1000)), 
-                               subsample = TRUE,
-                               run.id,
-                               output.path){
-  
-  if(any(!names(transformation.methods.to.test) %in% c("asinh"))) stop("Available transformation methods are: asinh")
-  if(missing(run.id)) run.id <- paste0("run",round(rnorm(1,0,20),1))
-  
-  for(t in 1:length(transformation.methods.to.test)){
-    curr.method <- names(transformation.methods.to.test)[t]
-    curr.cofactors <- transformation.methods.to.test[[t]]
-    
-    if(class(curr.cofactors) == "list"){
-      length.co <- length(curr.cofactors[[1]])
-    }else {
-      length.co <- length(curr.cofactors)
-    }
-    
-    print("Subsampling and transforming...")
-    
-    #Subsample or use all cells
-    b <- as.list(FCSlist[[4]])
-    if(subsample){
-      bcurr <- lapply(b, function(x) sample(x, 0.01*length(x)))
-    } else {
-      bcurr <- b
-    }
-    
-    #expand and transform
-    bcurr <- flatten(lapply(bcurr, function(x){
-      x <- lapply(curr.cofactors, function(y,x){asinh(x/y)},x )
-    }))
-    
-    
-    print("Calculating fits and scores...")
-    
-    #fit and return fit scores
-    fit.out <- lapply(bcurr, function(x){
-      out <- locmodes(x,mod0=2,display=FALSE)
-      out <- c(out$locations, out$cbw$bw) #extract relevant fit parameters
-      out[5] <- out[4] / (abs(mean(max(x), min(x)) - out[2]) + 0.001) #append score
-      out[6] <- 1
-      out[7] <- 0
-      names(out) <- c("m1","thresh","m2","cbw","sc", "upper_bound", "lower_bound")
-      return(out)
-    })
-    
-    print("Compiling summary...")
-    
-    #return final transformed dataset with thresholds
-    fit.out <- bind_rows(fit.out)
-    fit.out$cf <- rep(curr.cofactors, length(b))
-    fit.out$m <- rep(names(b), each = length(curr.cofactors))
-    res <- fit.out %>% group_by(m) %>% dplyr::slice(which.min(sc))
-    res <- res[order(factor(res$m, levels = unique(fit.out$m))),]
-    
-    print("Plotting...")
-    
-    #print PDF with best calculated transformations and thresholds
-    
-    btraf <- b
-    #open PDF (one PDF per transformation method)
-    pdf(paste0(output.path,"/TransTest_", run.id,"_",curr.method, ".pdf"), width = 5, height = 5)
-    for(i in 1:length(btraf)){
-      btraf[[i]] <- asinh(btraf[[i]]/res$cf[i])
-      hist(btraf[[i]], main = paste0(res$m[i], " /cf ", res$cf[i], "/thresh ", round(res$thresh[i],2)))
-      abline(v = res$thresh[i], col="red", lwd=3, lty=2)
-    }
-    dev.off()
-    
-    #write template dataframe for transform parameter
-    res$method <- curr.method
-    res$manual_cf <- "none"
-    res$manual_thresh <- "none"
-    res$manual_lower_bound <- "none"
-    res$manual_upper_bound <- "none"
-    write.xlsx(res,file = paste0(output.path,"/TransTemplate_",run.id,".xlsx"))
-  }
-  
-  print("Wrote template parameter file to output directory. Please add desired method/cofactors in Excel and read the file using the returned path")
-  return(output.path) 
-}
-
-#### Apply transformation ####
-
-ApplyTransformation <- function(FCSlist,
-                                transformation.parameters.path = "none",
-                                shiny.transformation_parameters = "none",
-                                output.path,
-                                run.id){
-  
-  FCSlist[["trans_exprs_frame"]] <- FCSlist[["exprs_frame"]]
-  
-  if(transformation.parameters.path != "none"){
-    trans.param <- read.xlsx(transformation.parameters.path)
-    
-    #organise manual input
-    trans.param$manual_cf[trans.param$manual_cf == "none"] <- trans.param$cf[trans.param$manual_cf == "none"]
-    trans.param$manual_thresh[trans.param$manual_thresh == "none"] <- trans.param$thresh[trans.param$manual_thresh == "none"]
-    trans.param$manual_lower_bound[trans.param$manual_lower_bound == "none"] <- trans.param$lower_bound[trans.param$manual_lower_bound == "none"]
-    trans.param$manual_upper_bound[trans.param$manual_upper_bound == "none"] <- trans.param$upper_bound[trans.param$manual_upper_bound == "none"]
-    
-    trans.param$manual_cf <- as.numeric(trans.param$manual_cf)
-    trans.param$manual_thresh <- as.numeric(trans.param$manual_thresh)
-    trans.param$lower_bound <- as.numeric(trans.param$lower_bound)
-    trans.param$upper_bound <- as.numeric(trans.param$upper_bound)
-    
-  } else if(class(shiny.transformation_parameters) != "character"){
-    
-    trans.param <- shiny.transformation_parameters
-    
-    trans.param$m <- trans.param$markers
-    trans.param$manual_cf <- as.numeric(trans.param$cofactors)
-    trans.param$manual_lower_bound <- as.numeric(trans.param$lower_bounds)
-    trans.param$manual_upper_bound <- as.numeric(trans.param$upper_bounds)
-    trans.param$manual_thresh <- 0
-    
-  } else {stop("Please provide input as either a path to an automatic parameters file or a shiny output transformation_parameters data.frame")}
-  
-  
-  #transform flowset
-  FCSlist[["trans_flowSet"]] <- fsApply(FCSlist[["flowSet"]], function(x, markers = trans.param$m, cofactors = trans.param$manual_cf, lower_bound = trans.param$lower_bound, upper_bound = trans.param$upper_bound){
-    expr <- exprs(x)
-    for(i in 1:length(markers)){
-      ### formula by Can! See his Github Transformation script! 
-      expr[,markers[i]] <- asinh(expr[,markers[i]] / cofactors[i])
-      lq <- quantile(expr[,markers[i]], lower_bound[i], names = FALSE, na.rm = TRUE)
-      uq <- quantile(expr[,markers[i]], upper_bound[i], names = FALSE, na.rm = TRUE)
-      expr[,markers[i]] <- (expr[,markers[i]] - lq)/(uq - lq)
-    }
-    exprs(x) <- expr
-    return(x)
-  })
-  
-  gc()
-  #transform exprs matrix
-  for(i in 1:nrow(trans.param)){
-    curr.marker <- trans.param$m[i]
-    curr.param <- trans.param$manual_cf[i]
-    
-    print(paste0("Transforming ", curr.marker, " with asinh and cofactor/base ", curr.param, " and lower and upper bounds of ", trans.param$manual_lower_bound[i], ", ", trans.param$manual_upper_bound[i]))
-    
-    
-    
-    FCSlist[["trans_exprs_frame"]][,curr.marker] <- asinh(FCSlist[["trans_exprs_frame"]][,curr.marker] / curr.param)
-    FCSlist[["trans_exprs_frame"]][,curr.marker] <- (FCSlist[["trans_exprs_frame"]][,curr.marker] - lq)/(uq - lq)
-  }
-  
-  #scale matrix
-  gc()
-  FCSlist[["scaled_exprs_frame"]] <- as.matrix(FCSlist[["trans_exprs_frame"]])
-  rng <- colQuantiles(FCSlist[["scaled_exprs_frame"]], probs = c(0.01, 0.99))
-  FCSlist[["scaled_exprs_frame"]] <- t((t(FCSlist[["scaled_exprs_frame"]]) - rng[, 1]) / (rng[, 2] - rng[, 1]))
-  FCSlist[["scaled_exprs_frame"]][FCSlist[["scaled_exprs_frame"]] < 0] <- 0
-  FCSlist[["scaled_exprs_frame"]][FCSlist[["scaled_exprs_frame"]] > 1] <- 1
-  
-  #setting thresholds
-  FCSlist[["panel"]]$transformation_method <- "asinh"
-  if(all(trans.param$m %in% FCSlist[["panel"]]$antigen)){
-    FCSlist[["panel"]]$transformation_cofactor <- trans.param$manual_cf[match(trans.param$m, FCSlist[["panel"]]$antigen)]
-    FCSlist[["panel"]]$positive_threshold <- trans.param$manual_thresh[match(trans.param$m, FCSlist[["panel"]]$antigen)]
-  }
-  
-  #return pdf with final transformations and thresholds
-  #open PDF (one PDF per transformation method)
-  btraf <- as.list(FCSlist[["exprs_frame"]])
-  pdf(paste0(output.path,"/TransApply_", run.id, ".pdf"), width = 5, height = 5)
-  for(i in 1:length(btraf)){
-    btraf[[i]] <- asinh(btraf[[i]]/trans.param$manual_cf[i])
-    hist(btraf[[i]], main = paste0(trans.param$m[i], " /cf ", trans.param$manual_cf[i], "/thresh ", round(trans.param$manual_thresh[i],2)))
-    abline(v = trans.param$manual_thresh[i], col="red", lwd=3, lty=2)
-  }
-  dev.off()
-  
-  print("Done. Returned results in slot trans_exprs_frame of FCSlist. Scaled data is in the slot scaled_exprs_frame. A transformed flowSet instances is in slot trans_flowSet. Also returned pdf TransApply ... for reference")
-  return(FCSlist)
-}
 
 #### QC plots ####
 

@@ -85,6 +85,8 @@ setClass("CYT", slots = c(
     markers = "vector",
     markers.idx = "vector",
     cell.name = "vector",
+    lineage.markers = "vector", #extension of class
+    state.markers = "vector", 
 
     # KNN
     knn = "numeric",
@@ -208,7 +210,7 @@ setValidity("CYT", function(object) {
 createCYT <- function(raw.data, markers = NULL, meta.data = NULL,
                       batch = NULL, batch.correct = FALSE,
                       normalization.method = "none",
-                      verbose = FALSE, ...) {
+                      verbose = FALSE,lineage.markers = NULL, ...) {
   # QC of cells
   if (missing(raw.data)) stop(Sys.time(), " raw.data is required")
   if (!is.matrix(raw.data)) {
@@ -263,12 +265,26 @@ createCYT <- function(raw.data, markers = NULL, meta.data = NULL,
     markers <- markers[which(!is.na(markers.idx))]
     markers.idx <- markers.idx[which(!is.na(markers.idx))]
   }
+  
+  #extension of class
+  if (!is.null(lineage.markers)) {
+    if(!all(lineage.markers %in% markers)) stop("At least one input to lineage.markers was not found in the fcs.data. Please check spelling")
+    obj.lineage.markers <- lineage.markers
+    obj.state.markers <- markers[!markers %in% lineage.markers]
+    
+    if(verbose) message(Sys.time(), paste0(" Lineage markers defined as: ", paste0(obj.lineage.markers, collapse = ", ")))
+    if(verbose) message(Sys.time(), paste0(" State markers defined as: ", paste0(obj.state.markers, collapse = ", ")))
+  } else {
+    obj.lineage.markers <- markers
+    obj.state.markers <- c("none")
+    if(verbose) message(Sys.time(), paste0(" All markers in object defined as lineage markers"))
+  }
 
   # Create an CYT object
   if (verbose) message(Sys.time(), " Creating CYT object.")
   object <- methods::new("CYT", raw.data = raw.data, meta.data = meta.data,
                          markers = markers, log.data = raw.data,
-                         markers.idx = markers.idx)
+                         markers.idx = markers.idx, lineage.markers = obj.lineage.markers, state.markers = obj.state.markers)
 
   # normalization and Log-normalize the data
   if (normalization.method == "log") {
@@ -300,6 +316,7 @@ createCYT <- function(raw.data, markers = NULL, meta.data = NULL,
       object <- correctBatchCYT(object, batch = batch, ...)
     }
   }
+  
 
   # Initialization of all parameters in computation
   object@plot.meta <- data.frame(row.names = object@meta.data$cell)

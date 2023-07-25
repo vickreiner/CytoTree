@@ -29,7 +29,9 @@ setMethod(
       "CYT Information:\n",
       "Input cell number:", nrow(object@raw.data), " cells \n",
       "Enroll marker number:", length(object@markers), " markers \n",
-      "Cells after downsampling:", sum(object@meta.data$dowsample), " cells \n"
+      "Cells after downsampling:", sum(object@meta.data$dowsample), " cells \n",
+      "Lineage markers:",paste0(object@lineage.markers, collapse = ", "), " \n",
+      "State markers:",paste0(object@state.markers, collapse = ", "), " \n"
     )
     invisible(NULL)
   }
