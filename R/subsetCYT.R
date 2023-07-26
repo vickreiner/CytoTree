@@ -49,7 +49,7 @@ subsetCYT <- function(object, cells = NULL,
   object.new <- new("CYT", raw.data = raw.data,
                     meta.data = meta.data,
                     log.data = log.data,
-                    markers = object@markers, markers.idx = object@markers.idx)
+                    markers = object@markers, markers.idx = object@markers.idx, lineage.markers = object@lineage.markers, state.markers = object@state.markers)
 
   return(object.new)
 }
