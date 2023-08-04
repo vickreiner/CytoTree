@@ -426,7 +426,7 @@ runClara <- function(object, k = 25, metric = c("euclidean", "manhattan", "jacca
   if (scale) clara.data <- scale(object@log.data[, object@markers.idx]) else clara.data = object@log.data[, object@markers.idx]
 
   metric <- match.arg(metric)
-  clara.info <- clara(clara.data, k = k, metric = metric, stand = stand, samples = samples,
+  clara.info <- cluster::clara(clara.data, k = k, metric = metric, stand = stand, samples = samples,
                       trace = trace, ...)
 
   object@meta.data$clara.id <- object@meta.data$cluster.id  <- clara.info$clustering
