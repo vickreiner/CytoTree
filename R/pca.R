@@ -31,7 +31,7 @@
 #' 
 #'
 runFastPCA <- function(object, center = FALSE, scale. = TRUE,
-                       verbose = FALSE, markers.to.use = "lineage", ...) {
+                       verbose = FALSE, markers.to.use = "lineage", downsample = TRUE, ...) {
   # PCA calculation
   if (verbose) message(Sys.time(), " Calculating PCA.")
   if (length(which(object@meta.data$dowsample == 1)) < 10) stop(Sys.time, " Not enough cells, please run processingCluster and choose correct downsampleing.size paramter. ")
@@ -50,7 +50,13 @@ runFastPCA <- function(object, center = FALSE, scale. = TRUE,
            if(verbose) message(Sys.time()," Using all markers for PCA")
          })
   
-  mat <- object@log.data[which(object@meta.data$dowsample == 1), markers.for.calculation]
+  
+  if(downsample){
+    mat <- object@log.data[which(object@meta.data$dowsample == 1), markers.for.calculation]
+  } else {
+    mat <- object@log.data[, markers.for.calculation]
+  }
+  
   pca.obj <- fast.prcomp( t(mat), retx = TRUE, center = center, scale. = scale., ...)
 
   object@pca.sdev <- pca.obj$sdev

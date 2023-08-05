@@ -43,7 +43,7 @@
 buildTree <- function(object, method = "euclidean",
                       dim.type = c("raw", "pca", "tsne", "dc", "umap"), 
                       dim.use = seq_len(2),
-                      verbose = FALSE, markers.to.use = "lineage") {
+                      verbose = FALSE, markers.to.use = "lineage", downsample = TRUE) {
 
   if (verbose) message(Sys.time(), " Calculating buildTree.")
   if (missing(object)) stop(Sys.time(), " CYT object is missing.")
@@ -77,13 +77,24 @@ buildTree <- function(object, method = "euclidean",
     tree.mat <- object@umap.value[, dim.name]
   } else {
     if (verbose) message(Sys.time(), " The log data will be used to calculate trajectory")
-    tree.mat <- object@log.data[which(object@meta.data$dowsample == 1), markers.for.calculation]
+    if(downsample){
+      tree.mat <- object@log.data[which(object@meta.data$dowsample == 1), markers.for.calculation]
+    } else {
+      tree.mat <- object@log.data[, markers.for.calculation]
+    }
+    
   }
 
   if (! "cluster.id" %in% colnames(object@meta.data)) {
     stop(Sys.time(), " Invalid cluster.id, please run runCluster first")
   }
-  cluster.info <- object@meta.data$cluster.id[which(object@meta.data$dowsample == 1)]
+  
+  if(downsample){
+    cluster.info <- object@meta.data$cluster.id[which(object@meta.data$dowsample == 1)]
+  } else {
+    cluster.info <- object@meta.data$cluster.id
+  }
+  
   mst.mat <- aggregate(tree.mat, list(cluster = cluster.info), mean)
   rownames(mst.mat) <- mst.mat[, 1]
 
@@ -112,7 +123,7 @@ buildTree <- function(object, method = "euclidean",
   object@meta.data$is.leaf.cells <- 0
 
   # update tree meta information
-  object <- updateClustMeta(object, verbose = FALSE)
+  object <- updateClustMeta(object, verbose = FALSE, downsample = downsample)
 
   if (verbose) message(Sys.time(), " Calculating buildTree completed.")
   return(object)

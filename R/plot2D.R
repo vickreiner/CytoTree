@@ -92,17 +92,22 @@ plot2D <- function(object,
                    show.cluser.id = FALSE,
                    show.cluser.id.size = 4,
                    main = "2D plot of CYT",
-                   plot.theme = NULL) {
+                   plot.theme = NULL,
+                   downsample = TRUE) {
 
   if(is.null(plot.theme)) plot.theme <- cowplot::theme_cowplot()+ theme(panel.border = element_rect(color = "black",size = 1.1, fill=NA), axis.line = element_blank())
   
   # update and fetch plot meta information
-  plot.meta <- fetchPlotMeta(object, verbose = FALSE)
+  plot.meta <- fetchPlotMeta(object, verbose = FALSE, downsample = downsample)
 
   idx <- match(c(color.by, item.use), colnames(object@log.data))
   idx <- idx[which(!is.na(idx))]
-  if (length(idx) > 0) {
-    sub <- as.data.frame(object@log.data[which(object@meta.data$dowsample == 1), idx])
+  if (length(idx) > 0) {#
+    if(downsample){
+      sub <- as.data.frame(object@log.data[which(object@meta.data$dowsample == 1), idx])
+    } else {
+      sub <- as.data.frame(object@log.data[, idx])
+    }
     colnames(sub) <- colnames(object@log.data)[idx]
     plot.meta <- cbind(plot.meta, sub)
   }
@@ -221,10 +226,11 @@ plotViolin <- function(object,
                        size = 1,
                        text.angle = 0,
                        main = "Violin plot CYT",
-                       plot.theme = theme_bw()) {
+                       plot.theme = theme_bw(), 
+                       downsample = TRUE) {
 
   # update plot meta information
-  plot.meta <- fetchPlotMeta(object, verbose = FALSE)
+  plot.meta <- fetchPlotMeta(object, verbose = FALSE, downsample = downsample)
 
   if (missing(marker)) stop(Sys.time(), " marker is missing.")
   # check item.use parameter in plot.meta data.frame
@@ -233,7 +239,12 @@ plotViolin <- function(object,
     marker <- marker[1]
   }
   if ( marker %in% colnames(object@log.data) ) {
-    plot.meta <- data.frame(plot.meta, marker = object@log.data[which(object@meta.data$dowsample == 1), marker])
+    
+    if(downsample){
+      plot.meta <- data.frame(plot.meta, marker = object@log.data[which(object@meta.data$dowsample == 1), marker])
+    } else {
+      plot.meta <- data.frame(plot.meta, marker = object@log.data[, marker])
+    }
   } else {
     stop(Sys.time(), " marker name is not correct")
   }
@@ -538,7 +549,7 @@ plotClusterHeatmap <- function(object,
                                pdf.name = "none",
                                wh = 10:5,
                                color = viridis::mako(100, begin = 0, end = 1),
-                               scale = "row",markers.to.use = "lineage", ...) {
+                               scale = "row",markers.to.use = "lineage", downsample = TRUE, ...) {
 
   switch(markers.to.use,
          lineage = {markers.for.calculation <- object@markers[which(object@markers %in% object@lineage.markers)]},
@@ -546,7 +557,7 @@ plotClusterHeatmap <- function(object,
          all = {markers.for.calculation <- object@markers})
   
   # update plot meta information
-  plot.meta.data <- fetchClustMeta(object, verbose = FALSE, group.by = group.by)
+  plot.meta.data <- fetchClustMeta(object, verbose = FALSE, group.by = group.by, downsample = downsample)
 
   mat <- plot.meta.data[, markers.for.calculation]
   rownames(mat) <- plot.meta.data$cluster
@@ -639,10 +650,10 @@ plotTrajHeatmap <- function(object,
                             cutoff = 0,
                             markers = NULL,
                             color = colorRampPalette(c("blue","white","red"))(100),
-                            scale = "row", ...) {
+                            scale = "row", downsample = TRUE, ...) {
 
   if (missing(object)) stop(Sys.time(), " object is missing")
-  object <- updatePlotMeta(object, verbose = FALSE)
+  object <- updatePlotMeta(object, verbose = FALSE, downsample = downsample)
 
   # update plot meta information
   plot.meta.data <- fetchClustMeta(object, verbose = FALSE)
@@ -707,13 +718,13 @@ plotHeatmap <- function(object,
                         scale = "row",
                         downsize = 1000,
                         cluster_rows = FALSE,
-                        cluster_cols = FALSE,
+                        cluster_cols = FALSE, downsample = TRUE,
                         ...) {
   if (missing(object)) stop(Sys.time(), " object is missing")
   object <- updatePlotMeta(object, verbose = FALSE)
 
   # update plot meta information
-  plot.meta.data <- fetchPlotMeta(object, verbose = FALSE)
+  plot.meta.data <- fetchPlotMeta(object, verbose = FALSE, downsample = downsample)
 
   if (downsize > dim(plot.meta.data)[1]) {
     downsize = dim(plot.meta.data)[1]

@@ -3,8 +3,8 @@
 SaveTemplateMetadataTable <- function(path.to.fcs = getwd(),
                                       out.file = "template.metadata.table.xlsx"){
   
-  fcs.files <- list.files(path = fcs.directory, pattern = ".fcs",full.names = F,include.dirs = F)
-  fcs.files.full <- list.files(path = fcs.directory, pattern = ".fcs",full.names = T,include.dirs = F)
+  fcs.files <- list.files(path = path.to.fcs, pattern = ".fcs",full.names = F,include.dirs = F)
+  fcs.files.full <- list.files(path = path.to.fcs, pattern = ".fcs",full.names = T,include.dirs = F)
   
   for(i in 1:length(fcs.files)){
     if(!stringr::str_detect(fcs.files.full[i],fcs.files[i])) stop("File ordering issue - Please contact me if you see this error message")
@@ -72,6 +72,30 @@ SubsampleFCSmatrix <- function(fcs.data = fcs.data,
   return(fcs.data)
 }
 
+####  Set subsampling column ####
+SetSubsamplingColumn <- function(cyt = cyt,  
+                               subsample.by.md.column = "raw_fcs",
+                               subsample.perc = 0.5){
+  
+  #expand metadata
+  if(!subsample.by.md.column %in% names(cyt@meta.data)) stop("subsample.by.md.column was not found in column names of input metadata")
+  
+  #fcs.file.rowname <- gsub("_\\d+$", "", rownames(fcs.data))
+  cyt@meta.data <- as.data.frame(cyt@meta.data)
+  subsampled.md <- lapply(split(cyt@meta.data, unlist(cyt@meta.data[,subsample.by.md.column])), function(ff, subsample.perc){
+    idx <- sample.int(nrow(ff), nrow(ff)*subsample.perc)
+    return(ff[idx,])}, subsample.perc)
+  subsampled.md <- bind_rows(subsampled.md)
+  
+  #set column
+  cyt@meta.data$dowsample <- 0
+  cyt@meta.data$dowsample[rownames(cyt@meta.data) %in% rownames(subsampled.md)] <- 1
+  
+  message("N cells selected in dowsample column: ")
+  print(table(cyt@meta.data$dowsample))
+  return(cyt)
+}
+
 #### Apply transformation ####
 
 ApplyTransformation <- function(fcs.data = fcs.data,
@@ -79,8 +103,6 @@ ApplyTransformation <- function(fcs.data = fcs.data,
   
    if(class(shiny.transformation_parameters) != "data.frame") stop("please provide a dataframe for shiny.transformation_parameters")                               
                                   
-  FCSlist[["trans_exprs_frame"]] <- FCSlist[["exprs_frame"]]
-
     trans.param <- shiny.transformation_parameters
     
     trans.param$m <- trans.param$markers
@@ -174,12 +196,13 @@ return(output.plot)
 }
 
 #### Cluster analysis wrapper ####
-AnalyzeClustersWrapper <- function(cyt = cyt, file.prefix = "CYT_clustering_3-2", wh = 10:10,cell.size = 15){
+AnalyzeClustersWrapper <- function(cyt = cyt, file.prefix = "CYT_clustering_3-2", wh = 10:10,cell.size = 15, downsample = FALSE, downsample.dimred = TRUE){
   
   #Heatmaps
 plotClusterHeatmap(object = cyt, cluster_rows = FALSE, 
                      cluster_cols = FALSE, 
                      markers.to.use = "all", 
+                     downsample = downsample, 
                      scale = "column", 
                      group.by = "raw_fcs", 
                      cell.size = cell.size,
@@ -188,7 +211,8 @@ plotClusterHeatmap(object = cyt, cluster_rows = FALSE,
   
 plotClusterHeatmap(object = cyt, cluster_rows = TRUE, 
                      cluster_cols = FALSE, 
-                     markers.to.use = "all", 
+                     markers.to.use = "all",  
+                     downsample = downsample, 
                      scale = "column", 
                      group.by = "cluster.id", 
                      cell.size = cell.size,
@@ -198,6 +222,7 @@ plotClusterHeatmap(object = cyt, cluster_rows = TRUE,
 plotClusterHeatmap(object = cyt, cluster_rows = FALSE, 
                    cluster_cols = FALSE, 
                    markers.to.use = "all", 
+                   downsample = downsample, 
                    scale = "column", 
                    group.by = "population", 
                    cell.size = cell.size,
@@ -207,7 +232,7 @@ plotClusterHeatmap(object = cyt, cluster_rows = FALSE,
   #VLN plots 
   pdf(paste0(file.prefix,"_VLN_allMarkers_byCluster.pdf"), width = 7, height = 4)
        for(i in cyt@markers){
-         print(plotViolin(object = cyt, color.by = "cluster.id", marker = i, text.angle = 60) + labs(title = i) + theme(legend.position = "none"))
+         print(plotViolin(object = cyt, color.by = "cluster.id", marker = i, text.angle = 60, downsample = downsample) + labs(title = i) + theme(legend.position = "none"))
        }
        dev.off()
                                             
@@ -215,7 +240,7 @@ plotClusterHeatmap(object = cyt, cluster_rows = FALSE,
 pdf(paste0(file.prefix,"_FeatureUMAP_allMarkers.pdf"), width = 7, height = 5)
 for(i in cyt@markers){
    print(plot2D(object = cyt, item.use = c("UMAP_1", "UMAP_2"), category = "numeric",
-          size = 1, color.by = i) + labs(title = i) + scale_color_viridis_c(option = "A"))
+          size = 1, color.by = i, downsample = downsample.dimred) + labs(title = i) + scale_color_viridis_c(option = "A"))
 }
 dev.off()
                                                 

@@ -18,19 +18,25 @@
 #' 
 #'
 #'
-updatePlotMeta <- function(object, verbose = TRUE) {
-  plot.meta <- object@meta.data[which(object@meta.data$dowsample == 1), ]
-  if (dim(object@pca.value)[2] > 0) {
-    plot.meta <- cbind(plot.meta, object@pca.value)
+updatePlotMeta <- function(object, verbose = TRUE, downsample = TRUE) {
+  
+  if(downsample){
+    plot.meta <- object@meta.data[which(object@meta.data$dowsample == 1), ]
+  } else {
+    plot.meta <- object@meta.data
   }
+
+  if (dim(object@pca.value)[2] > 0) {
+    plot.meta <- cbind(plot.meta, object@pca.value[match(rownames(plot.meta),rownames(object@pca.value), nomatch = NA),])
+    }
   if (dim(object@tsne.value)[2] > 0) {
-    plot.meta <- cbind(plot.meta, object@tsne.value)
+    plot.meta <- cbind(plot.meta, object@tsne.value[match(rownames(plot.meta),rownames(object@tsne.value), nomatch = NA),])
   }
   if (dim(object@dm@eigenvectors)[2] > 0) {
-    plot.meta <- cbind(plot.meta, object@dm@eigenvectors)
+    plot.meta <- cbind(plot.meta, object@dm@eigenvectors[match(rownames(plot.meta),rownames(object@dm@eigenvectors), nomatch = NA),])
   }
   if (dim(object@umap.value)[2] > 0) {
-    plot.meta <- cbind(plot.meta, object@umap.value)
+    plot.meta <- cbind(plot.meta, object@umap.value[match(rownames(plot.meta),rownames(object@umap.value), nomatch = NA),])
   }
 
   plot.meta <- as.data.frame(plot.meta)
@@ -172,12 +178,17 @@ addMetaData <- function(object, meta.info,
 #' cyt <- updateClustMeta(cyt)
 #' 
 #'
-updateClustMeta <- function(object, verbose = FALSE, group.by = "cluster.id") {
-
+updateClustMeta <- function(object, verbose = FALSE, group.by = "cluster.id", downsample = TRUE) {
+  
   if(!group.by %in% names(object@meta.data)) stop("group.by not found in meta.data column name. Please check spelling")
   # Generating tree meta information
-  plot.data <- fetchPlotMeta(object, verbose = FALSE)
-  plot.data <- cbind(plot.data, object@log.data[which(object@meta.data$dowsample == 1), ])
+  plot.data <- fetchPlotMeta(object, verbose = FALSE, downsample = downsample)
+  
+  if(downsample){
+    plot.data <- cbind(plot.data, object@log.data[which(object@meta.data$dowsample == 1), ])
+  } else {
+    plot.data <- cbind(plot.data, object@log.data)
+  }
 
   if (length(unique(plot.data$stage)) > 1) {
     cell.count <- table(plot.data[, match(c(group.by, "stage"), colnames(plot.data)) ])
@@ -242,18 +253,20 @@ updateClustMeta <- function(object, verbose = FALSE, group.by = "cluster.id") {
 #'
 #'
 #'
-fetchPlotMeta <- function(object, markers = NULL, verbose = FALSE) {
+fetchPlotMeta <- function(object, markers = NULL, verbose = FALSE, downsample = TRUE) {
 
     # update and fetch plot meta information
-  object <- updatePlotMeta(object, verbose = FALSE)
+  object <- updatePlotMeta(object, verbose = FALSE, downsample = downsample)
   plot.meta <- object@plot.meta
   idx <- match(markers, colnames(object@log.data))
   idx <- idx[which(!is.na(idx))]
   if (length(idx) > 0) {
-    plot.meta <- cbind(plot.meta, object@log.data[which(object@meta.data$dowsample == 1), idx])
+    if(downsample){
+      plot.meta <- cbind(plot.meta, object@log.data[which(object@meta.data$dowsample == 1), idx])
+    } else {
+      plot.meta <- cbind(plot.meta, object@log.data)
+    }
   }
-
-
   return(plot.meta)
 }
 
@@ -279,9 +292,9 @@ fetchPlotMeta <- function(object, markers = NULL, verbose = FALSE) {
 #' 
 #'
 #'
-fetchClustMeta <- function(object, verbose = FALSE, group.by = "cluster.id") {
+fetchClustMeta <- function(object, verbose = FALSE, group.by = "cluster.id", downsample = TRUE) {
 
-  object <- updateClustMeta(object, verbose = verbose, group.by = group.by)
+  object <- updateClustMeta(object, verbose = verbose, group.by = group.by, downsample = downsample)
 
   return(object@tree.meta)
 }
