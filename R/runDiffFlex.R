@@ -33,22 +33,31 @@
 #'
 #'
 #'
-runDiffFlex <- function(object, grouping.column = "cluster.id", group1 = NULL, group2 = NULL, verbose = FALSE, p.adjust.method = "BH", pairwise = FALSE,...) {
+runDiffFlex <- function(object, grouping.column = "cluster.id", group1 = NULL, group2 = NULL, verbose = FALSE, p.adjust.method = "BH", pairwise = FALSE, downsample = FALSE,...) {
 
   if (verbose) message(Sys.time(), " Calculating differentially expressed markers.")
   if (missing(object)) stop(Sys.time(), " CYT object is missing.")
   if (!grouping.column %in% colnames(object@meta.data)) stop(Sys.time(), "input to grouping.column is missing in meta.data. Please check spelling")
 
   all.branch.ids <- unique(object@meta.data[,grouping.column])
+  
   total.deg.list <- NULL
   branch.contrast <- NULL
   ga <- go <- NULL
   if (length(all.branch.ids) == 1) {
     stop(Sys.time(), " There is only one group.")
   } else {
-    pdata <- object@meta.data[which(object@meta.data$dowsample == 1), c("cell", grouping.column)]
-    names(pdata)[2] <- "branch.id"
-    edata <- object@log.data[which(object@meta.data$dowsample == 1), object@markers.idx]
+    
+    if(downsample){
+      pdata <- object@meta.data[which(object@meta.data$dowsample == 1), c("cell", grouping.column)]
+      names(pdata)[2] <- "branch.id"
+      edata <- object@log.data[which(object@meta.data$dowsample == 1), object@markers.idx]
+    } else {
+      pdata <- object@meta.data[, c("cell", grouping.column)]
+      names(pdata)[2] <- "branch.id"
+      edata <- object@log.data[, object@markers.idx]
+    }
+    
     if (is.null(group1) & is.null(group2)) {
       if(pairwise == FALSE){
           for (bid in all.branch.ids) {

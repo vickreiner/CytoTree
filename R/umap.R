@@ -57,6 +57,8 @@ runUMAP <- function(object, umap.config = umap.defaults,
   }
   message(paste0("Using ", nrow(mat), " cells for UMAP..."))
   
+  print(colnames(mat))
+  
 
   umap.config$n_neighbors <- n_neighbors
   umap.config$n_components <- dims

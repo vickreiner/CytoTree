@@ -62,8 +62,9 @@ runExprsMerge <- function(fcsFiles,
                           comp = FALSE,
                           transformMethod = c("autoLgcl", "cytofAsinh", "logicle", "arcsinh", "logAbs", "none"),
                           scaleTo = NULL,
-                          mergeMethod = c("ceil", "all", "fixed", "min"),
-                          fixedNum = 2000, ...) {
+                          mergeMethod = c("ceil", "all", "fixed", "min", "perc_of"),
+                          fixedNum = 2000, 
+                          subsample.perc = 0.05, ...) {
 
   transformMethod <- match.arg(transformMethod)
   mergeMethod <- match.arg(mergeMethod)
@@ -74,6 +75,9 @@ runExprsMerge <- function(fcsFiles,
                                    scaleTo = scaleTo, ...),
                    SIMPLIFY = FALSE)
 
+  #remove all that have 0 cells
+  exprsL <- exprsL[lapply(exprsL, function(x) return(class(x))) != "character"]
+  
   ## test if number of events in any fcs less than fixedNum
   eventCountTest <- suppressWarnings(any(lapply(exprsL, function(x) if (nrow(x) < fixedNum) {1} else {0})))
   ## solution 1, change mergeMethod from fixed to ceil
@@ -111,6 +115,12 @@ runExprsMerge <- function(fcsFiles,
              x[sample(nrow(x), size = minSize, replace = FALSE), , drop=FALSE]
            }
            merged <- do.call(rbind, lapply(exprsL, mergeFunc))
+         },
+         perc_of = { #extension to allow for subsampling along a column in the metadata
+           mergeFunc <- function(x, subsample.perc) {
+             x[sample.int(nrow(x), nrow(x)*subsample.perc),]
+           }
+           merged <- do.call(rbind, lapply(exprsL, mergeFunc, subsample.perc = subsample.perc))
          })
 
   return(merged)
@@ -199,6 +209,12 @@ runExprsExtract <- function(fcsFile,
     fcs <- read.FCS(fcsFile, transformation = FALSE)
   } else {
     fcs <- suppressWarnings(read.FCS(fcsFile, transformation = FALSE))
+  }
+  
+  #catch error with empty FCS files
+  if(nrow(fcs@exprs) == 0){
+    warning(paste0(fcsFile, " contains 0 cells"))
+    return("0 cells")
   }
 
   ## compensation

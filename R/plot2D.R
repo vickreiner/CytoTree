@@ -565,12 +565,12 @@ plotClusterHeatmap <- function(object,
     if(!stringr::str_detect(pdf.name, ".pdf$")) pdf.name <- paste0(pdf.name, ".pdf")
     pdf(pdf.name, width = wh[1], height = wh[length(wh)])
     gg <- pheatmap(mat, color = color, scale = scale, border_color = NA, cellwidth = cell.size, cellheight = cell.size,...)
-    dev.off()
     print(gg)
   } else {
     gg <- pheatmap(mat, color = color, scale = scale, border_color = NA, cellwidth = cell.size, cellheight = cell.size,...)
     return(gg)
   }
+  dev.off()
 }
 
 #'

@@ -6,10 +6,6 @@ SaveTemplateMetadataTable <- function(path.to.fcs = getwd(),
   fcs.files <- list.files(path = path.to.fcs, pattern = ".fcs",full.names = F,include.dirs = F)
   fcs.files.full <- list.files(path = path.to.fcs, pattern = ".fcs",full.names = T,include.dirs = F)
   
-  for(i in 1:length(fcs.files)){
-    if(!stringr::str_detect(fcs.files.full[i],fcs.files[i])) stop("File ordering issue - Please contact me if you see this error message")
-  }
-  
   #test names
   if(min(stringr::str_count(fcs.files, "_")) < 2) stop("Naming not compatible. Naming should include at least 2 underscores (_) and look like this: export_YourFCSFileName.fcs")
   fcs.ids <- stringr::str_split(fcs.files, "_", simplify = T)
@@ -131,7 +127,9 @@ ApplyTransformation <- function(fcs.data = fcs.data,
 ExpandMetadata <- function(md = md,
                            fcs.data = fcs.data){
   ns <- gsub("_\\d+$", "", rownames(fcs.data)) #get rownmames without cell id
-  if(!all(ns %in% md$raw_fcs) | !all(md$raw_fcs %in% ns)) stop("More than one raw_fcs file from metadata not found in fcs.data matrix or vice versa. Please check fcs.data via rownames(fcs.data)")
+  
+  if(!all(ns %in% md$raw_fcs)) stop(paste0("File names from rownames of fcs.data were not found in md$raw_fcs: ", paste0(unique(ns[!ns %in% md$raw_fcs]),collapse = ", ")))
+  if(!all(md$raw_fcs %in% ns)) stop(paste0("File names from md$raw_fcs of were not found in rownames of fcs.data : ", paste0(unique(md$raw_fcs[!md$raw_fcs %in% ns]),collapse = ", ")))
   mdl <- md[match(ns, md$raw_fcs),]
   mdl$cell <- rownames(fcs.data)
   mdl$stage <- mdl$group_id
@@ -208,7 +206,6 @@ plotClusterHeatmap(object = cyt, cluster_rows = FALSE,
                      cell.size = cell.size,
                      pdf.name = paste0(file.prefix,"_HEATMAP_byRawFcs"), #set to "none" to avoid saving plot
                      wh = wh) #height : width
-  
 plotClusterHeatmap(object = cyt, cluster_rows = TRUE, 
                      cluster_cols = FALSE, 
                      markers.to.use = "all",  
@@ -218,7 +215,6 @@ plotClusterHeatmap(object = cyt, cluster_rows = TRUE,
                      cell.size = cell.size,
                      pdf.name = paste0(file.prefix,"_HEATMAP_byCluster"), #set to "none" to avoid saving plot
                      wh = wh) #height : width
-                     
 plotClusterHeatmap(object = cyt, cluster_rows = FALSE, 
                    cluster_cols = FALSE, 
                    markers.to.use = "all", 
@@ -228,7 +224,7 @@ plotClusterHeatmap(object = cyt, cluster_rows = FALSE,
                    cell.size = cell.size,
                    pdf.name = paste0(file.prefix,"_HEATMAP_byPopulation"), #set to "none" to avoid saving plot
                    wh = wh) #height : width
-                                        
+                                  
   #VLN plots 
   pdf(paste0(file.prefix,"_VLN_allMarkers_byCluster.pdf"), width = 7, height = 4)
        for(i in cyt@markers){
@@ -245,12 +241,16 @@ for(i in cyt@markers){
 dev.off()
                                                 
 #Cluster-specific markers (1 cluster vs. all)
-cl_markers <- runDiffFlex(object = cyt, grouping.column = "population", p.adjust.method = "BH")
+cl_markers <- runDiffFlex(object = cyt, grouping.column = "cluster.id", p.adjust.method = "BH")
 openxlsx::write.xlsx(cl_markers,paste0(file.prefix,"_ClusterMarkers.xlsx"))
+
+#Cluster-specific markers (1 cluster vs. all)
+cl_markers <- runDiffFlex(object = cyt, grouping.column = "population", p.adjust.method = "BH")
+openxlsx::write.xlsx(cl_markers,paste0(file.prefix,"_PopulationMarkers.xlsx"))
                                                                      
 #Pairwise markers (each cluster vs. each other)
-cl_markers <- runDiffFlex(object = cyt, grouping.column = "population", p.adjust.method = "BH", pairwise = TRUE)
-openxlsx::write.xlsx(cl_markers,paste0(file.prefix,"_ClusterMarkersPairwise.xlsx"))
+#cl_markers <- runDiffFlex(object = cyt, grouping.column = "population", p.adjust.method = "BH", pairwise = TRUE)
+#openxlsx::write.xlsx(cl_markers,paste0(file.prefix,"_ClusterMarkersPairwise.xlsx"))
 message("Done")                    
 }
 
@@ -280,11 +280,12 @@ AnnotateClusters <- function(cyt,
 
 #### Subclustering function ####
 
-SubclusterCyt <- function(cyt = cyt, cluster.to.subcluster = c(1),...){
+SubclusterCyt <- function(cyt = cyt, cluster.to.subcluster = c(1), k = 5,...){
   
   curr.cyt <- subsetCYT(cyt, cells = rownames(cyt@meta.data)[cyt@meta.data$cluster.id %in% cluster.to.subcluster])
+  print(nrow(curr.cyt@log.data))
   old.cls <- curr.cyt@meta.data$cluster.id
-  curr.cyt <- curr.cyt %>% runCluster(...) %>% processingCluster()
+  curr.cyt <- curr.cyt %>% runCluster(k = k,...)
   new.cls <- paste0(old.cls, "_", curr.cyt@meta.data$cluster.id)
   
   #remap to complete cyt
@@ -330,7 +331,10 @@ GenerateFlowtidyDF <- function(cyt = cyt,
   } else{
     rawmeans$ordercol <- apply(rawmeans[,c(sample.id.column, grouping.column, iteration.column)] ,1, paste , collapse = "-//-")
     cell.nr$ordercol <- apply(cell.nr[,c(sample.id.column, grouping.column, iteration.column)] ,1, paste , collapse = "-//-")
-    rawmeans <- rawmeans[match(rawmeans$ordercol, cell.nr$ordercol),]
+    rawmeans <- rawmeans[match(cell.nr$ordercol,rawmeans$ordercol),]
+    
+   # return(list(rawmeans, cell.nr))
+    
     if(all(rawmeans$ordercol == cell.nr$ordercol)){
     rawmeans <- cbind(cell.nr[,!colnames(cell.nr) == "ordercol"],rawmeans[,!colnames(rawmeans) %in% c(sample.id.column, grouping.column, iteration.column, "ordercol")])
     } else {stop("Merging error")}
