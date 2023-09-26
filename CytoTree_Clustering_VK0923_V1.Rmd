@@ -71,6 +71,7 @@ spdf <- function(file, d = 7:7){ #first number is width, second is height
   dev.off()
 }
 
+#for server: /Immunology_shares/Becherlab/People/Kreiner/....
 wd <- "/Volumes/G_Inflammation_research$/People/Kreiner/PROJECTS/pro005_PregnancyImmuneAlterationsScreen/20230320_VK011_SynAlloExp3_d3111/3_analysis/an005_CytoTreePipeline_UTERUS_v1"
 setwd(wd)
 ```
@@ -213,6 +214,18 @@ View(cyt@meta.data)
 #intermediate save point
 saveRDS(cyt,"CYT_obj_chunk1-6_v1_WOnonDCs.rds")
 
+```
+
+### 2.3. Subsetting the cyt ####
+
+In some cases it is necessary to filter out cells from the cyt. Importanly, this custom subsetting function does not delete / change any additional calculated data (transformations/UMAPs/Networks etc)
+
+```{r, fig.show='hold', eval = FALSE}
+#get the ids of cells to remove / this is just an example
+cells.to.remove <- rownames(cyt@meta.data)[1:10] #remove cells 1:10
+cyt <- filterCYT(cyt, cells, invert.filter = F)
+
+cyt
 ```
 
 #3.1 Clustering Round 1 

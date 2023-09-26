@@ -714,3 +714,30 @@ FlowTestBoxplots <- function(FlowTestGroups.table, #the full, or a subset, of th
 }
 
 
+##### Subset the cyt object ####
+
+filterCYT <- function(cyt, cells, invert.filter = F){
+  #get indices of cells
+  if(invert.filter){
+    cells.to.remove <- rownames(cyt@meta.data)[rownames(cyt@meta.data) %in% cells]
+  } else {
+    cells.to.remove <- rownames(cyt@meta.data)[!rownames(cyt@meta.data) %in% cells]
+  }
+  print(cells.to.remove)
+  
+  #go through object and remove cells
+
+  cyt@raw.data <- cyt@raw.data[!rownames(cyt@raw.data) %in% cells.to.remove,]
+  if(any(class(cyt@log.data) == "matrix"))  cyt@log.data <- cyt@log.data[!rownames(cyt@log.data) %in% cells.to.remove,]
+  cyt@meta.data <- cyt@meta.data[!rownames(cyt@meta.data) %in% cells.to.remove,]
+  
+  if(any(class(cyt@cell.name) == "character")) cyt@cell.name <- cyt@cell.name[!cyt@cell.name %in% cells.to.remove]
+  if(any(class(cyt@pca.value) == "matrix")) cyt@pca.value <- cyt@pca.value[!rownames(cyt@pca.value) %in% cells.to.remove,]
+  if(any(class(cyt@umap.value) == "matrix")) cyt@umap.value <- cyt@umap.value[!rownames(cyt@umap.value) %in% cells.to.remove,]
+  
+  return(cyt)
+  
+}
+class(cyt@log.data)
+
+

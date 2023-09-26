@@ -93,9 +93,10 @@ plot2D <- function(object,
                    show.cluser.id.size = 4,
                    main = "2D plot of CYT",
                    plot.theme = NULL,
-                   downsample = TRUE) {
+                   downsample = TRUE,
+                   legend.point.size=3) {
 
-  if(is.null(plot.theme)) plot.theme <- cowplot::theme_cowplot()+ theme(panel.border = element_rect(color = "black",size = 1.1, fill=NA), axis.line = element_blank())
+  if(is.null(plot.theme)) plot.theme <- cowplot::theme_cowplot()+ theme(panel.border = element_blank(), axis.ticks = element_blank(), axis.text = element_blank()) 
   
   # update and fetch plot meta information
   plot.meta <- fetchPlotMeta(object, verbose = FALSE, downsample = downsample)
@@ -173,7 +174,7 @@ plot2D <- function(object,
   gg <- ggplot(plot.data) + geom_point(aes(x=plot.x, y=plot.y, color = color.by), size = size, alpha = alpha)
   gg <- gg + plot.theme
   gg <- gg + labs(x = item.use[1], y = item.use[2], title = paste0(main))
-  gg <- gg + labs(color = color.by)
+  gg <- gg + labs(color = color.by) + guides(color = guide_legend(override.aes = list(size=legend.point.size)))
 
   if (show.cluser.id & (category == "categorical")) {
      pos <- aggregate(  plot.data[, seq_len(2)], list( pos = plot.data$color.by ), mean)
