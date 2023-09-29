@@ -86,6 +86,8 @@ plot2D <- function(object,
                    item.use = c("PC_1", "PC_2"),
                    color.by = "stage",
                    order.by = NULL,
+                   split.by = NULL,
+                   ncol = 4,
                    size = 1,
                    alpha = 1,
                    category = "categorical",
@@ -101,7 +103,16 @@ plot2D <- function(object,
   # update and fetch plot meta information
   plot.meta <- fetchPlotMeta(object, verbose = FALSE, downsample = downsample)
 
-  idx <- match(c(color.by, item.use), colnames(object@log.data))
+  if(!is.null(split.by)){
+    message("Facet plot")
+    if(!split.by %in% names(object@meta.data)) stop("Split.by not found in Colnames of meta.data. Please check spelling")
+  } else{
+    split.by <- "none___"
+    object@meta.data$none___ <- 1
+  }
+  
+  
+  idx <- match(c(color.by,split.by, item.use), colnames(object@log.data))
   idx <- idx[which(!is.na(idx))]
   if (length(idx) > 0) {#
     if(downsample){
@@ -143,12 +154,14 @@ plot2D <- function(object,
 
   item.use.idx <- match(item.use, colnames(plot.meta))
   color.by.idx <- match(color.by, colnames(plot.meta))
+  split.by.idx <- match(split.by, colnames(plot.meta))
 
   plot.x = plot.y =NULL
 
   plot.data <- data.frame(plot.x = plot.meta[, item.use.idx[1]],
                           plot.y = plot.meta[, item.use.idx[2]],
-                          color.by = plot.meta[, color.by.idx])
+                          color.by = plot.meta[, color.by.idx],
+                          split.by = plot.meta[, split.by.idx])
 
   if ((length( unique(plot.data$color.by) ) > 256) & (category != "numeric")) {
     warning(Sys.time(), " color.by is categorical and has more than 256 elements. It will be used as numeric instead.")
@@ -184,6 +197,12 @@ plot2D <- function(object,
                            label = pos$pos[i],
                            size = show.cluser.id.size)
      }
+  }
+  
+  print(plot.data)
+  
+  if(split.by != "none___"){
+    gg <- gg + facet_wrap(~split.by, ncol = ncol) 
   }
 
   return(gg)

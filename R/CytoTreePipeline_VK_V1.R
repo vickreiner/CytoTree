@@ -643,7 +643,6 @@ FlowTestBoxplots <- function(FlowTestGroups.table, #the full, or a subset, of th
       #add x coordinate for line by ordering groups in results the same as in raw data
       if(!is.factor(curr_raw$group)) curr_raw$group <- factor(curr_raw$group, levels = unique(raw$group))
       
-      
       curr_signif$group1 <- factor(curr_signif$group1, levels = levels(curr_raw$group))
       curr_signif$group2 <- factor(curr_signif$group2, levels = levels(curr_raw$group))
       
@@ -723,7 +722,6 @@ filterCYT <- function(cyt, cells, invert.filter = F){
   } else {
     cells.to.remove <- rownames(cyt@meta.data)[!rownames(cyt@meta.data) %in% cells]
   }
-  print(cells.to.remove)
   
   #go through object and remove cells
 
@@ -738,6 +736,6 @@ filterCYT <- function(cyt, cells, invert.filter = F){
   return(cyt)
   
 }
-class(cyt@log.data)
+
 
 
